@@ -7,3 +7,7 @@ build:
 clean:
 	@echo "Cleaning"
 	@if find . -name $(BINFILE) -print -quit | grep -q .; then rm $(BINFILE); fi
+
+test:
+	@echo "Starting testing"
+	@go test -cover

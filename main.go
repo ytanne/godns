@@ -16,11 +16,14 @@ import (
 
 var (
 	ErrNotImplemented = fmt.Errorf("not implemented")
+	ErrIPLookupFailed = fmt.Errorf("failed to lookup IP")
 )
 
 const (
 	// Caching for a day
 	timeLimit = 24 * time.Hour
+
+	googleDNS = "8.8.8.8:53"
 )
 
 type record struct {
@@ -31,6 +34,12 @@ type record struct {
 type customServer struct {
 	sync.RWMutex
 	records map[string]record
+}
+
+func NewCustomServer() *customServer {
+	return &customServer{
+		records: make(map[string]record),
+	}
 }
 
 func (c *customServer) readRecord(hostname string) (string, bool) {
@@ -80,7 +89,7 @@ func (c *customServer) parseQuery(m *dns.Msg) error {
 				log.Printf("%s is not cached", q.Name)
 				var err error
 
-				ip, err = lookupIP(q.Name)
+				ip, err = lookupIP(q.Name, googleDNS)
 				if err != nil {
 					return err
 				}
@@ -101,24 +110,24 @@ func (c *customServer) parseQuery(m *dns.Msg) error {
 	return nil
 }
 
-func lookupIP(servername string) (string, error) {
+func lookupIP(servername, dnsServer string) (string, error) {
 	c := new(dns.Client)
 	m := new(dns.Msg)
 	m.SetQuestion(servername, dns.TypeA)
-	r, _, err := c.Exchange(m, "8.8.8.8:53")
+	r, _, err := c.Exchange(m, dnsServer)
 	if err != nil {
 		return "", err
 	}
 
 	if len(r.Answer) < 1 {
-		return "", fmt.Errorf("no A record found for %s", servername)
+		return "", fmt.Errorf("%w - no A record found for %s", ErrIPLookupFailed, servername)
 	}
 
 	if t, ok := r.Answer[0].(*dns.A); ok {
 		return t.A.String(), nil
 	}
 
-	return "", fmt.Errorf("no A record found for %s", servername)
+	return "", fmt.Errorf("%w - no A record found for %s", ErrIPLookupFailed, servername)
 }
 
 func (c *customServer) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
