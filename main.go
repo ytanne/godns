@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/miekg/dns"
@@ -138,23 +141,47 @@ func (c *customServer) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	w.WriteMsg(m)
 }
 
-func main() {
+type Server interface {
+	ListenAndServe() error
+	Shutdown() error
+}
+
+type app struct {
+	server Server
+}
+
+func (a *app) Run(port int) {
 	c := customServer{
 		records: make(map[string]record),
 	}
 	// start server
-	port := 1773
+
 	server := &dns.Server{
 		Addr:    ":" + strconv.Itoa(port),
 		Net:     "udp",
 		Handler: &c,
 	}
 	log.Printf("Starting at %d\n", port)
-
+	a.server = server
 	err := server.ListenAndServe()
 	if err != nil {
 		log.Fatalf("Failed to start server: %s\n ", err.Error())
 	}
+}
 
-	defer server.Shutdown()
+func (a *app) Close() {
+	a.server.Shutdown()
+}
+
+func main() {
+	a := new(app)
+	go a.Run(1773)
+
+	osSignalChan := make(chan os.Signal, 1)
+	signal.Notify(osSignalChan, syscall.SIGINT, syscall.SIGTERM)
+
+	osSignal := <-osSignalChan
+	fmt.Println()
+	log.Printf("Obtained %v signal, closing application", osSignal)
+	a.Close()
 }
