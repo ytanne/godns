@@ -2,12 +2,12 @@ BINFILE = "godns"
 
 build:
 	@echo "Building binary"
-	@go build -o $(BINFILE) main.go
+	@go build -o bin/$(BINFILE) cmd/main.go
 
 clean:
 	@echo "Cleaning"
-	@if find . -name $(BINFILE) -print -quit | grep -q .; then rm $(BINFILE); fi
+	@rm bin/$(BINFILE)
 
 test:
 	@echo "Starting testing"
-	@go test -cover
+	@go test -cover -timeout 10s ./...

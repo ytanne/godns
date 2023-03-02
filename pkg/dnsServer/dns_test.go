@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"fmt"
@@ -14,15 +14,15 @@ func TestDNS(t *testing.T) {
 
 	testDomain := "domain.test"
 	testIP := "192.168.0.1"
-	c.records[testDomain] = record{
-		ip:   "192.168.0.1",
-		time: time.Now(),
-	}
+	c.AddRecord(testDomain, Record{
+		IP:   "192.168.0.1",
+		Time: time.Now(),
+	})
 	outdatedDomain := "outdated.test."
-	c.records[outdatedDomain] = record{
-		ip:   "",
-		time: time.Now().Add(-time.Hour * 24),
-	}
+	c.AddRecord(outdatedDomain, Record{
+		IP:   "",
+		Time: time.Now().Add(-time.Hour * 24),
+	})
 
 	result1, _ := dns.NewRR(fmt.Sprintf("%s A %s", testDomain, testIP))
 	result3, _ := dns.NewRR(fmt.Sprintf("%s A %s", "example.com.", "93.184.216.34"))

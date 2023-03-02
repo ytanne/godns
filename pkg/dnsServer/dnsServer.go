@@ -1,14 +1,10 @@
-package main
+package server
 
 import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
-	"os/signal"
-	"strconv"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/miekg/dns"
@@ -26,23 +22,29 @@ const (
 	googleDNS = "8.8.8.8:53"
 )
 
-type record struct {
-	ip   string
-	time time.Time
+type Record struct {
+	IP   string
+	Time time.Time
 }
 
-type customServer struct {
+type dnsServer struct {
 	sync.RWMutex
-	records map[string]record
+	records map[string]Record
 }
 
-func NewCustomServer() *customServer {
-	return &customServer{
-		records: make(map[string]record),
+func NewCustomServer() *dnsServer {
+	return &dnsServer{
+		records: make(map[string]Record),
 	}
 }
 
-func (c *customServer) readRecord(hostname string) (string, bool) {
+func (c *dnsServer) AddRecord(hostname string, record Record) {
+	c.Lock()
+	defer c.Unlock()
+	c.records[hostname] = record
+}
+
+func (c *dnsServer) readRecord(hostname string) (string, bool) {
 	c.RLock()
 	record, ok := c.records[hostname]
 	c.RUnlock()
@@ -50,7 +52,7 @@ func (c *customServer) readRecord(hostname string) (string, bool) {
 		return "", false
 	}
 
-	if time.Since(record.time) >= timeLimit {
+	if time.Since(record.Time) >= timeLimit {
 		c.Lock()
 		delete(c.records, hostname)
 		c.Unlock()
@@ -58,10 +60,10 @@ func (c *customServer) readRecord(hostname string) (string, bool) {
 		return "", false
 	}
 
-	return record.ip, true
+	return record.IP, true
 }
 
-func (c *customServer) writeRecord(hostname, ip string) {
+func (c *dnsServer) writeRecord(hostname, ip string) {
 	c.RLock()
 	_, ok := c.records[hostname]
 	c.RUnlock()
@@ -73,13 +75,13 @@ func (c *customServer) writeRecord(hostname, ip string) {
 	c.Lock()
 	defer c.Unlock()
 	log.Printf("%s is cached", hostname)
-	c.records[hostname] = record{
-		ip:   ip,
-		time: time.Now(),
+	c.records[hostname] = Record{
+		IP:   ip,
+		Time: time.Now(),
 	}
 }
 
-func (c *customServer) parseQuery(m *dns.Msg) error {
+func (c *dnsServer) parseQuery(m *dns.Msg) error {
 	for _, q := range m.Question {
 		switch q.Qtype {
 		case dns.TypeA:
@@ -130,7 +132,7 @@ func lookupIP(servername, dnsServer string) (string, error) {
 	return "", fmt.Errorf("%w - no A record found for %s", ErrIPLookupFailed, servername)
 }
 
-func (c *customServer) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
+func (c *dnsServer) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	m := new(dns.Msg)
 	m.SetReply(r)
 	m.Compress = false
@@ -148,49 +150,4 @@ func (c *customServer) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	}
 
 	w.WriteMsg(m)
-}
-
-type Server interface {
-	ListenAndServe() error
-	Shutdown() error
-}
-
-type app struct {
-	server Server
-}
-
-func (a *app) Run(port int) {
-	c := customServer{
-		records: make(map[string]record),
-	}
-	// start server
-
-	server := &dns.Server{
-		Addr:    ":" + strconv.Itoa(port),
-		Net:     "udp",
-		Handler: &c,
-	}
-	log.Printf("Starting at %d\n", port)
-	a.server = server
-	err := server.ListenAndServe()
-	if err != nil {
-		log.Fatalf("Failed to start server: %s\n ", err.Error())
-	}
-}
-
-func (a *app) Close() {
-	a.server.Shutdown()
-}
-
-func main() {
-	a := new(app)
-	go a.Run(1773)
-
-	osSignalChan := make(chan os.Signal, 1)
-	signal.Notify(osSignalChan, syscall.SIGINT, syscall.SIGTERM)
-
-	osSignal := <-osSignalChan
-	fmt.Println()
-	log.Printf("Obtained %v signal, closing application", osSignal)
-	a.Close()
 }
