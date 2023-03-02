@@ -11,3 +11,7 @@ clean:
 test:
 	@echo "Starting testing"
 	@go test -cover -timeout 10s ./...
+
+lint:
+	@echo "Running linter"
+	@golangci-lint run

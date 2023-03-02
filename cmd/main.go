@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -10,15 +9,18 @@ import (
 	"github.com/ytanne/godns/pkg/app"
 )
 
+const (
+	dnsport = 1773
+)
+
 func main() {
 	a := app.NewApp()
-	go a.Run(1773)
+	go a.Run(dnsport)
 
 	osSignalChan := make(chan os.Signal, 1)
 	signal.Notify(osSignalChan, syscall.SIGINT, syscall.SIGTERM)
 
 	osSignal := <-osSignalChan
-	fmt.Println()
 	log.Printf("Obtained %v signal, closing application", osSignal)
 	a.Close()
 }

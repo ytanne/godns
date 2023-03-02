@@ -16,7 +16,7 @@ var (
 )
 
 const (
-	// Caching for a day
+	// Caching for a day.
 	timeLimit = 24 * time.Hour
 
 	googleDNS = "8.8.8.8:53"
@@ -48,6 +48,7 @@ func (c *dnsServer) readRecord(hostname string) (string, bool) {
 	c.RLock()
 	record, ok := c.records[hostname]
 	c.RUnlock()
+
 	if !ok {
 		return "", false
 	}
@@ -67,14 +68,17 @@ func (c *dnsServer) writeRecord(hostname, ip string) {
 	c.RLock()
 	_, ok := c.records[hostname]
 	c.RUnlock()
+
 	if ok {
 		log.Printf("%s is already cached", hostname)
+
 		return
 	}
 
 	c.Lock()
 	defer c.Unlock()
 	log.Printf("%s is cached", hostname)
+
 	c.records[hostname] = Record{
 		IP:   ip,
 		Time: time.Now(),
@@ -86,9 +90,11 @@ func (c *dnsServer) parseQuery(m *dns.Msg) error {
 		switch q.Qtype {
 		case dns.TypeA:
 			log.Printf("Query for %s\n", q.Name)
+
 			ip, ok := c.readRecord(q.Name)
 			if !ok {
 				log.Printf("%s is not cached", q.Name)
+
 				var err error
 
 				ip, err = lookupIP(q.Name, googleDNS)
@@ -109,6 +115,7 @@ func (c *dnsServer) parseQuery(m *dns.Msg) error {
 			return fmt.Errorf("%w - %s is not supported yet\n", ErrNotImplemented, dns.TypeToString[q.Qtype])
 		}
 	}
+
 	return nil
 }
 
@@ -116,6 +123,7 @@ func lookupIP(servername, dnsServer string) (string, error) {
 	c := new(dns.Client)
 	m := new(dns.Msg)
 	m.SetQuestion(servername, dns.TypeA)
+
 	r, _, err := c.Exchange(m, dnsServer)
 	if err != nil {
 		return "", err

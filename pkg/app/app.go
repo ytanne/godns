@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/miekg/dns"
-	server "github.com/ytanne/godns/pkg/dnsServer"
+	server "github.com/ytanne/godns/pkg/dns-server"
 )
 
 type Server interface {
@@ -30,8 +30,11 @@ func (a *app) Run(port int) {
 		Net:     "udp",
 		Handler: c,
 	}
+
 	log.Printf("Starting at %d\n", port)
+
 	a.server = server
+
 	err := server.ListenAndServe()
 	if err != nil {
 		log.Fatalf("Failed to start server: %s\n ", err.Error())
