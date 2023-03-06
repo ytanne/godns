@@ -1,11 +1,14 @@
 package app
 
 import (
+	"context"
 	"log"
-	"strconv"
 
 	"github.com/miekg/dns"
-	server "github.com/ytanne/godns/pkg/dns-server"
+	"github.com/ytanne/godns/pkg/config"
+	dnsServer "github.com/ytanne/godns/pkg/dns-server"
+	httpServer "github.com/ytanne/godns/pkg/http-server"
+	"golang.org/x/sync/errgroup"
 )
 
 type Server interface {
@@ -14,31 +17,59 @@ type Server interface {
 }
 
 type app struct {
+	config config.Config
 	server Server
 }
 
-func NewApp() app {
-	return app{}
+func NewApp(config config.Config) app {
+	return app{
+		config: config,
+	}
 }
 
-func (a *app) Run(port int) {
-	c := server.NewCustomServer()
-	// start server
+func (a *app) Run(ctx context.Context) error {
+	c := dnsServer.NewDnsServer()
 
 	server := &dns.Server{
-		Addr:    ":" + strconv.Itoa(port),
+		Addr:    ":" + a.config.DnsPort,
 		Net:     "udp",
 		Handler: c,
 	}
 
-	log.Printf("Starting at %d\n", port)
-
 	a.server = server
 
-	err := server.ListenAndServe()
+	g, _ := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		log.Printf("Starting dns server at :%s\n", a.config.DnsPort)
+
+		err := server.ListenAndServe()
+		if err != nil {
+			log.Printf("Failed to start server: %s", err)
+		}
+
+		return err
+	})
+
+	g.Go(func() error {
+		log.Printf("Starting http server at :%s\n", a.config.HttpPort)
+
+		httpServer.SetupSecretKey(a.config.SecretKey)
+
+		err := httpServer.RunServer(a.config.HttpPort)
+		if err != nil {
+			log.Printf("Failed to start http server: %s", err)
+		}
+
+		return err
+	})
+
+	err := g.Wait()
 	if err != nil {
-		log.Fatalf("Failed to start server: %s\n ", err.Error())
+		return err
 	}
+
+	return nil
 }
 
 func (a *app) Close() {
