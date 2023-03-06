@@ -32,7 +32,7 @@ type dnsServer struct {
 	records map[string]Record
 }
 
-func NewCustomServer() *dnsServer {
+func NewDnsServer() *dnsServer {
 	return &dnsServer{
 		records: make(map[string]Record),
 	}

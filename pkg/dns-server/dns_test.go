@@ -10,7 +10,7 @@ import (
 )
 
 func TestDNS(t *testing.T) {
-	c := NewCustomServer()
+	c := NewDnsServer()
 
 	testDomain := "domain.test"
 	testIP := "192.168.0.1"
