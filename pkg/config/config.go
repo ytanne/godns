@@ -11,6 +11,7 @@ type Config struct {
 	DnsPort   string `yaml:"dns-port"`
 	HttpPort  string `yaml:"http-port"`
 	SecretKey string `yaml:"secret-key"`
+	DbPath    string `yaml:"db-path"`
 }
 
 func NewConfig(path string) (Config, error) {

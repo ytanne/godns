@@ -8,6 +8,7 @@ import (
 	"github.com/ytanne/godns/pkg/config"
 	dnsServer "github.com/ytanne/godns/pkg/dns-server"
 	httpServer "github.com/ytanne/godns/pkg/http-server"
+	repo "github.com/ytanne/godns/pkg/repo/leveldb"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -28,7 +29,12 @@ func NewApp(config config.Config) app {
 }
 
 func (a *app) Run(ctx context.Context) error {
-	c := dnsServer.NewDnsServer()
+	db, err := repo.NewLevelDB(a.config.DbPath)
+	if err != nil {
+		return err
+	}
+
+	c := dnsServer.NewDnsServer(db)
 
 	server := &dns.Server{
 		Addr:    ":" + a.config.DnsPort,
@@ -64,7 +70,7 @@ func (a *app) Run(ctx context.Context) error {
 		return err
 	})
 
-	err := g.Wait()
+	err = g.Wait()
 	if err != nil {
 		return err
 	}
