@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/miekg/dns"
-	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/ytanne/godns/pkg/models"
 )
 
@@ -51,7 +51,7 @@ func (c *dnsServer) readRecord(hostname string) (string, error) {
 	record, err := c.cache.Get(hostname)
 	c.RUnlock()
 
-	if err != nil && errors.Is(err, leveldb.ErrNotFound) {
+	if err != nil && strings.Contains(err.Error(), "not found") {
 		return "", ErrNotFound
 	}
 	// record, ok := c.records[hostname]
@@ -114,9 +114,10 @@ func (c *dnsServer) parseQuery(m *dns.Msg) error {
 				return err
 			}
 
-			rr := new(dns.A)
-			rr.Hdr = dns.RR_Header{Name: m.Question[0].Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: uint32(defaultTtl)}
-			rr.A = net.ParseIP(ip)
+			rr, err := formRR(m.Question[0].Name, ip, dns.TypeA)
+			if err != nil {
+				return err
+			}
 
 			m.Answer = append(m.Answer, rr)
 		case dns.TypeAAAA:
@@ -125,13 +126,14 @@ func (c *dnsServer) parseQuery(m *dns.Msg) error {
 				return fmt.Errorf("could not resolve %s query - %w", dns.TypeToString[q.Qtype], err)
 			}
 
-			rr := new(dns.AAAA)
-			rr.Hdr = dns.RR_Header{Name: m.Question[0].Name, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: uint32(defaultTtl)}
-			rr.AAAA = net.ParseIP(ip)
+			rr, err := formRR(m.Question[0].Name, ip, dns.TypeAAAA)
+			if err != nil {
+				return err
+			}
 
 			m.Answer = append(m.Answer, rr)
 		default:
-			log.Println("obtained strange query %s", dns.TypeToString[q.Qtype])
+			log.Printf("obtained strange query %s", dns.TypeToString[q.Qtype])
 
 			return fmt.Errorf("%w - %s is not supported yet", ErrNotImplemented, dns.TypeToString[q.Qtype])
 		}
@@ -140,6 +142,27 @@ func (c *dnsServer) parseQuery(m *dns.Msg) error {
 	}
 
 	return nil
+}
+
+func formRR(hostname, ip string, qType uint16) (dns.RR, error) {
+	var rr dns.RR
+
+	switch qType {
+	case dns.TypeA:
+		r := new(dns.A)
+		r.Hdr = dns.RR_Header{Name: hostname, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: uint32(defaultTtl)}
+		r.A = net.ParseIP(ip)
+		rr = r
+	case dns.TypeAAAA:
+		r := new(dns.AAAA)
+		r.Hdr = dns.RR_Header{Name: hostname, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: uint32(defaultTtl)}
+		r.AAAA = net.ParseIP(ip)
+		rr = r
+	default:
+		return nil, errors.New("unknown query type")
+	}
+
+	return rr, nil
 }
 
 func lookupIP(servername, dnsServer string, reqType uint16) (string, error) {
