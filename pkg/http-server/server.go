@@ -11,21 +11,40 @@ func SetupSecretKey(key string) {
 	secretKey = key
 }
 
-func RunServer(port string) error {
-	server := http.Server{
-		Addr:    ":" + port,
-		Handler: middleware(http.HandlerFunc(handleA)),
-	}
-
-	return server.ListenAndServe()
+type httpServer struct {
+	secretKey string
+	port      string
+	server    *http.Server
 }
 
-func handleA(w http.ResponseWriter, r *http.Request) {
+func NewHttpServer(key, port string) *httpServer {
+	h := &httpServer{
+		secretKey: key,
+		port:      port,
+	}
+
+	h.server = &http.Server{
+		Addr:    ":" + h.port,
+		Handler: h.middleware(http.HandlerFunc(h.handleA)),
+	}
+
+	return h
+}
+
+func (h *httpServer) ListenAndServe() error {
+	return h.server.ListenAndServe()
+}
+
+func (h *httpServer) Shutdown() error {
+	return h.server.Close()
+}
+
+func (h *httpServer) handleA(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 	w.Write([]byte("not implemented yet"))
 }
 
-func middleware(next http.Handler) http.Handler {
+func (h *httpServer) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Header.Get("secret-key")
 

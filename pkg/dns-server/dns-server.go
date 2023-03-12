@@ -104,7 +104,7 @@ func (c *dnsServer) parseQuery(m *dns.Msg) error {
 
 				ip, err = lookupIP(q.Name, googleDNS, dns.TypeA)
 				if err != nil {
-					return fmt.Errorf("%w - could not resolve %s query - %w", ErrIPLookupFailed, dns.TypeToString[q.Qtype], err)
+					return fmt.Errorf("%w - could not resolve %s query - %s", ErrIPLookupFailed, dns.TypeToString[q.Qtype], err)
 				}
 
 				c.writeRecord(q.Name, ip)
@@ -123,7 +123,7 @@ func (c *dnsServer) parseQuery(m *dns.Msg) error {
 		case dns.TypeAAAA:
 			ip, err := lookupIP(q.Name, googleDNS, dns.TypeAAAA)
 			if err != nil {
-				return fmt.Errorf("%w - could not resolve %s query - %w", ErrIPLookupFailed, dns.TypeToString[q.Qtype], err)
+				return fmt.Errorf("%w - could not resolve %s query - %s", ErrIPLookupFailed, dns.TypeToString[q.Qtype], err)
 			}
 
 			rr, err := formRR(m.Question[0].Name, ip, dns.TypeAAAA)

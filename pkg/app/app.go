@@ -18,8 +18,9 @@ type Server interface {
 }
 
 type app struct {
-	config config.Config
-	server Server
+	config    config.Config
+	dnsServer Server
+	webServer Server
 }
 
 func NewApp(config config.Config) app {
@@ -36,20 +37,20 @@ func (a *app) Run(ctx context.Context) error {
 
 	c := dnsServer.NewDnsServer(db)
 
-	server := &dns.Server{
+	a.dnsServer = &dns.Server{
 		Addr:    ":" + a.config.DnsPort,
 		Net:     "udp",
 		Handler: c,
 	}
 
-	a.server = server
+	a.webServer = httpServer.NewHttpServer(a.config.SecretKey, a.config.HttpPort)
 
 	g, _ := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
 		log.Printf("Starting dns server at :%s\n", a.config.DnsPort)
 
-		err := server.ListenAndServe()
+		err := a.dnsServer.ListenAndServe()
 		if err != nil {
 			log.Printf("Failed to start server: %s", err)
 		}
@@ -58,11 +59,9 @@ func (a *app) Run(ctx context.Context) error {
 	})
 
 	g.Go(func() error {
-		log.Printf("Starting http server at :%s\n", a.config.HttpPort)
+		log.Printf("Starting web server at :%s\n", a.config.HttpPort)
 
-		httpServer.SetupSecretKey(a.config.SecretKey)
-
-		err := httpServer.RunServer(a.config.HttpPort)
+		err := a.webServer.ListenAndServe()
 		if err != nil {
 			log.Printf("Failed to start http server: %s", err)
 		}
@@ -79,5 +78,6 @@ func (a *app) Run(ctx context.Context) error {
 }
 
 func (a *app) Close() {
-	a.server.Shutdown()
+	a.webServer.Shutdown()
+	a.dnsServer.Shutdown()
 }
