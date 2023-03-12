@@ -64,6 +64,7 @@ func TestDNS(t *testing.T) {
 
 	result1, _ := formRR(testDomain, testIP, dns.TypeA)
 	result3, _ := formRR("example.com.", "93.184.216.34", dns.TypeA)
+	result4, _ := formRR("example.com.", "2606:2800:220:1:248:1893:25c8:1946", dns.TypeAAAA)
 
 	tss := []struct {
 		description       string
@@ -93,11 +94,24 @@ func TestDNS(t *testing.T) {
 			expectedError: ErrNotImplemented,
 		},
 		{
-			description:       "valid query",
+			description:       "valid query A",
 			domain:            "example.com.",
 			queryType:         dns.TypeA,
 			expectedLenResult: 1,
 			expectedResult:    result3,
+		},
+		{
+			description:       "valid query AAAA",
+			domain:            "example.com.",
+			queryType:         dns.TypeAAAA,
+			expectedLenResult: 1,
+			expectedResult:    result4,
+		},
+		{
+			description:   "invalid query",
+			domain:        "invalid.test",
+			queryType:     dns.TypeA,
+			expectedError: ErrIPLookupFailed,
 		},
 	}
 
