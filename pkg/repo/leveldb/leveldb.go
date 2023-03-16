@@ -2,6 +2,7 @@ package repo
 
 import (
 	"encoding/json"
+	"log"
 
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/ytanne/godns/pkg/models"
@@ -38,6 +39,27 @@ func (r *repo) Get(key string) (models.Record, error) {
 	}
 
 	return *record, nil
+}
+
+func (r *repo) GetAll() ([]models.Record, error) {
+	var records []models.Record
+
+	iter := r.db.NewIterator(nil, nil)
+	for iter.Next() {
+		value := iter.Value()
+		record := new(models.Record)
+
+		err := json.Unmarshal(value, record)
+		if err != nil {
+			log.Println("could not retrieve records:", err)
+
+			return nil, err
+		}
+
+		records = append(records, *record)
+	}
+
+	return records, nil
 }
 
 func (r *repo) Set(key string, record models.Record) error {

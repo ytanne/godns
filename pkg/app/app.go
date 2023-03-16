@@ -43,7 +43,7 @@ func (a *app) Run(ctx context.Context) error {
 		Handler: c,
 	}
 
-	a.webServer = httpServer.NewHttpServer(a.config.WebConfig)
+	a.webServer = httpServer.NewHttpServer(a.config.WebConfig, db)
 
 	g, _ := errgroup.WithContext(ctx)
 

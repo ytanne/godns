@@ -83,8 +83,9 @@ func (c *dnsServer) writeRecord(hostname, ip string) error {
 	log.Printf("%s is cached", hostname)
 
 	return c.cache.Set(hostname, models.Record{
-		IP:   ip,
-		Time: time.Now(),
+		Domain: hostname,
+		IP:     ip,
+		Time:   time.Now(),
 	})
 }
 

@@ -2,24 +2,36 @@ package server
 
 import (
 	"encoding/base64"
+	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
 	"github.com/ytanne/godns/pkg/config"
+	"github.com/ytanne/godns/pkg/models"
 )
+
+type keyDB interface {
+	GetAll() ([]models.Record, error)
+	//	Block(key string) error
+	Remove(key string) error
+}
 
 type httpServer struct {
 	username string
 	password string
 	server   *http.Server
 	mux      *http.ServeMux
+	db       keyDB
 }
 
-func NewHttpServer(cfg config.WebServerConfig) *httpServer {
+func NewHttpServer(cfg config.WebServerConfig, db keyDB) *httpServer {
 	h := &httpServer{
 		username: cfg.Username,
 		password: cfg.Password,
+		db:       db,
 	}
+
 	mux := http.NewServeMux()
 
 	mux.Handle("/api/", http.StripPrefix("/api", h.middleware(http.HandlerFunc(h.handleAPI))))
@@ -46,7 +58,7 @@ func (h *httpServer) Shutdown() error {
 
 func (h *httpServer) handleAPI(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
-	case "/queries":
+	case "/cache":
 		h.handleQueries(w, r)
 
 		return
@@ -57,7 +69,60 @@ func (h *httpServer) handleAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *httpServer) handleQueries(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.GetQueries(w, r)
+
+		return
+	case http.MethodDelete:
+		h.DeleteQuery(w, r)
+
+		return
+	}
+
 	http.Error(w, "not implemented", http.StatusNotImplemented)
+}
+
+func (h *httpServer) DeleteQuery(w http.ResponseWriter, r *http.Request) {
+	key := r.URL.Query().Get("domain")
+	if key == "" {
+		http.Error(w, "no domain provided", http.StatusBadRequest)
+
+		return
+	}
+
+	log.Println("domain to delete:", key)
+
+	if err := h.db.Remove(key); err != nil {
+		log.Println("could not delete domain:", err)
+		http.Error(w, "could not delete domain", http.StatusBadRequest)
+
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(key + " is deleted"))
+}
+
+func (h *httpServer) GetQueries(w http.ResponseWriter, r *http.Request) {
+	records, err := h.db.GetAll()
+	if err != nil {
+		log.Println("failed to get records from keyDB:", err)
+		http.Error(w, "could not get DNS records", http.StatusInternalServerError)
+
+		return
+	}
+
+	data, err := json.MarshalIndent(records, "", "  ")
+	if err != nil {
+		log.Println("failed to marshal records:", err)
+		http.Error(w, "could not get DNS records", http.StatusInternalServerError)
+
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }
 
 func (h *httpServer) middleware(next http.Handler) http.Handler {
