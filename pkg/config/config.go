@@ -8,10 +8,16 @@ import (
 
 //nolint:tagliatelle
 type Config struct {
-	DnsPort   string `yaml:"dns-port"`
-	HttpPort  string `yaml:"http-port"`
-	SecretKey string `yaml:"secret-key"`
-	DbPath    string `yaml:"db-path"`
+	WebConfig WebServerConfig `yaml:"web-config"`
+	DnsPort   string          `yaml:"dns-port"`
+	DbPath    string          `yaml:"db-path"`
+}
+
+//nolint:tagliatelle
+type WebServerConfig struct {
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	HttpPort string `yaml:"http-port"`
 }
 
 func NewConfig(path string) (Config, error) {

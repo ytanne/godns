@@ -43,7 +43,7 @@ func (a *app) Run(ctx context.Context) error {
 		Handler: c,
 	}
 
-	a.webServer = httpServer.NewHttpServer(a.config.SecretKey, a.config.HttpPort)
+	a.webServer = httpServer.NewHttpServer(a.config.WebConfig)
 
 	g, _ := errgroup.WithContext(ctx)
 
@@ -59,7 +59,7 @@ func (a *app) Run(ctx context.Context) error {
 	})
 
 	g.Go(func() error {
-		log.Printf("Starting web server at :%s\n", a.config.HttpPort)
+		log.Printf("Starting web server at :%s\n", a.config.WebConfig.HttpPort)
 
 		err := a.webServer.ListenAndServe()
 		if err != nil {
