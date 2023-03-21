@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 
-	"github.com/miekg/dns"
 	"github.com/ytanne/godns/pkg/config"
 	dnsServer "github.com/ytanne/godns/pkg/dns-server"
 	httpServer "github.com/ytanne/godns/pkg/http-server"
@@ -34,15 +33,13 @@ func (a *app) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Println("could not close database", err)
+		}
+	}()
 
-	c := dnsServer.NewDnsServer(db)
-
-	a.dnsServer = &dns.Server{
-		Addr:    ":" + a.config.DnsPort,
-		Net:     "udp",
-		Handler: c,
-	}
-
+	a.dnsServer = dnsServer.NewDnsServer(a.config.DnsPort, db)
 	a.webServer = httpServer.NewHttpServer(a.config.WebConfig, db)
 
 	g, _ := errgroup.WithContext(ctx)

@@ -49,7 +49,11 @@ func (h *httpServer) verifyUser(username, password string) bool {
 }
 
 func (h *httpServer) ListenAndServe() error {
-	return h.server.ListenAndServe()
+	if err := h.server.ListenAndServe(); err != http.ErrServerClosed {
+		return err
+	}
+
+	return nil
 }
 
 func (h *httpServer) Shutdown() error {

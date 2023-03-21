@@ -28,25 +28,53 @@ const (
 	defaultTtl = 86400 // one day.
 )
 
-type keyDB interface {
-	Get(key string) (models.Record, error)
-	Set(key string, value models.Record) error
-	Remove(key string) error
-	Close() error
+type server interface {
+	ListenAndServe() error
+	Shutdown() error
 }
 
-type dnsServer struct {
+type handler struct {
 	sync.RWMutex
 	cache keyDB
 }
 
-func NewDnsServer(cache keyDB) *dnsServer {
-	return &dnsServer{
+type keyDB interface {
+	Get(key string) (models.Record, error)
+	Set(key string, value models.Record) error
+	Remove(key string) error
+}
+
+type dnsServer struct {
+	server  server
+	handler handler
+}
+
+func NewDnsServer(dnsPort string, cache keyDB) *dnsServer {
+	h := &handler{
 		cache: cache,
+	}
+	s := &dns.Server{
+		Addr:    ":" + dnsPort,
+		Net:     "udp",
+		Handler: h,
+	}
+
+	return &dnsServer{
+		server: s,
 	}
 }
 
-func (c *dnsServer) readRecord(hostname string) (string, error) {
+func (d *dnsServer) ListenAndServe() error {
+	return d.server.ListenAndServe()
+}
+
+func (d *dnsServer) Shutdown() error {
+	d.handler.Close()
+
+	return d.server.Shutdown()
+}
+
+func (c *handler) readRecord(hostname string) (string, error) {
 	c.RLock()
 	record, err := c.cache.Get(hostname)
 	c.RUnlock()
@@ -54,7 +82,6 @@ func (c *dnsServer) readRecord(hostname string) (string, error) {
 	if err != nil && strings.Contains(err.Error(), "not found") {
 		return "", ErrNotFound
 	}
-	// record, ok := c.records[hostname]
 
 	if time.Since(record.Time) >= timeLimit {
 		c.Lock()
@@ -67,7 +94,7 @@ func (c *dnsServer) readRecord(hostname string) (string, error) {
 	return record.IP, nil
 }
 
-func (c *dnsServer) writeRecord(hostname, ip string) error {
+func (c *handler) writeRecord(hostname, ip string) error {
 	c.RLock()
 	_, err := c.cache.Get(hostname)
 	c.RUnlock()
@@ -89,7 +116,7 @@ func (c *dnsServer) writeRecord(hostname, ip string) error {
 	})
 }
 
-func (c *dnsServer) parseQuery(m *dns.Msg) error {
+func (c *handler) parseQuery(m *dns.Msg) error {
 	for _, q := range m.Question {
 		log.Printf("%s query for %s", dns.TypeToString[q.Qtype], q.Name)
 
@@ -189,7 +216,7 @@ func lookupIP(servername, dnsServer string, reqType uint16) (string, error) {
 	return "", fmt.Errorf("%w - no A record found for %s", ErrIPLookupFailed, servername)
 }
 
-func (c *dnsServer) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
+func (c *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	m := new(dns.Msg)
 	m.SetReply(r)
 	m.Compress = false
@@ -213,6 +240,5 @@ func (c *dnsServer) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	w.WriteMsg(m)
 }
 
-func (c *dnsServer) Close() {
-	c.cache.Close()
+func (c *handler) Close() {
 }
