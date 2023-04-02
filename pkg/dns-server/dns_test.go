@@ -45,19 +45,20 @@ func (m *mockDB) Close() error {
 	return nil
 }
 
-func TestDNS(t *testing.T) {
+func TestHandler(t *testing.T) {
 	db := NewMockDB()
-	c := NewDnsServer(db)
-	defer c.Close()
+	h := handler{
+		cache: db,
+	}
 
 	testDomain := "domain.test."
 	testIP := "192.168.0.1"
-	c.cache.Set(testDomain, models.Record{
+	db.Set(testDomain, models.Record{
 		IP:   "192.168.0.1",
 		Time: time.Now(),
 	})
 	outdatedDomain := "outdated.test."
-	c.cache.Set(outdatedDomain, models.Record{
+	db.Set(outdatedDomain, models.Record{
 		IP:   "",
 		Time: time.Now().Add(-time.Hour * 24),
 	})
@@ -120,7 +121,7 @@ func TestDNS(t *testing.T) {
 			m := new(dns.Msg)
 			m.SetQuestion(ts.domain, ts.queryType)
 
-			require.ErrorIs(t, c.parseQuery(m), ts.expectedError)
+			require.ErrorIs(t, h.parseQuery(m), ts.expectedError)
 			if ts.expectedError != nil {
 				return
 			}

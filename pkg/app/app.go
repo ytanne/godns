@@ -33,6 +33,7 @@ func (a *app) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	defer func() {
 		if err := db.Close(); err != nil {
 			log.Println("could not close database", err)

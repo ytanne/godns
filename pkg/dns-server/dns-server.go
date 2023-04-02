@@ -45,8 +45,7 @@ type keyDB interface {
 }
 
 type dnsServer struct {
-	server  server
-	handler handler
+	server server
 }
 
 func NewDnsServer(dnsPort string, cache keyDB) *dnsServer {
@@ -69,8 +68,6 @@ func (d *dnsServer) ListenAndServe() error {
 }
 
 func (d *dnsServer) Shutdown() error {
-	d.handler.Close()
-
 	return d.server.Shutdown()
 }
 
