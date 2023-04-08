@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>My Table</title>
+  </head>
+  <body>
+    <h1>DNS cache</h1>
+    <table id="my-table">
+      <thead>
+        <tr>
+          <th>Domain</th>
+          <th>IPv4</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+
+    <script>
+      // Define function to populate table
+      function populateTable(data) {
+        var tableBody = document.querySelector('#my-table tbody');
+        for (var i = 0; i < data.length; i++) {
+          var row = tableBody.insertRow(-1);
+          var domainCell = row.insertCell(0);
+          var ipv4Cell = row.insertCell(1);
+          var timeCell = row.insertCell(2);
+          domainCell.textContent = data[i].domain;
+          ipv4Cell.textContent = data[i].ipv4;
+          timeCell.textContext = data[i].time;
+        }
+      }
+
+      // Fetch JSON data and populate table on page load
+      window.addEventListener('load', function() {
+        fetch('/api/cache')
+          .then(function(response) { return response.json(); })
+          .then(function(data) { populateTable(data); })
+          .catch(function(error) { console.error(error); });
+      });
+    </script>
+  </body>
+</html>
+

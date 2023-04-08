@@ -3,12 +3,14 @@ package server
 import (
 	"encoding/base64"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strings"
 
+	_ "embed"
+
 	"github.com/ytanne/godns/pkg/config"
 	"github.com/ytanne/godns/pkg/models"
+	"go.uber.org/zap"
 )
 
 type keyDB interface {
@@ -20,21 +22,32 @@ type keyDB interface {
 type httpServer struct {
 	username string
 	password string
-	server   *http.Server
-	mux      *http.ServeMux
 	db       keyDB
+	server   *http.Server
+	log      *zap.Logger
 }
 
-func NewHttpServer(cfg config.WebServerConfig, db keyDB) *httpServer {
+func WithLogger(logger *zap.Logger) func(h *httpServer) {
+	return func(h *httpServer) {
+		h.log = logger
+	}
+}
+
+func NewHttpServer(cfg config.WebServerConfig, db keyDB, sets ...func(*httpServer)) *httpServer {
 	h := &httpServer{
 		username: cfg.Username,
 		password: cfg.Password,
 		db:       db,
 	}
 
+	for _, set := range sets {
+		set(h)
+	}
+
 	mux := http.NewServeMux()
 
 	mux.Handle("/api/", http.StripPrefix("/api", h.middleware(http.HandlerFunc(h.handleAPI))))
+	mux.Handle("/", h.middleware(http.HandlerFunc(h.handlePages)))
 
 	h.server = &http.Server{
 		Addr:    ":" + cfg.HttpPort,
@@ -42,6 +55,16 @@ func NewHttpServer(cfg config.WebServerConfig, db keyDB) *httpServer {
 	}
 
 	return h
+}
+
+func (h *httpServer) handlePages(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {
+	case "/index.html", "/":
+		http.ServeFile(w, r, "./pkg/http-server/templates/index.html")
+	default:
+		h.log.Error("page requested not supported", zap.String("path", r.URL.Path))
+		http.Error(w, "not found", http.StatusNotFound)
+	}
 }
 
 func (h *httpServer) verifyUser(username, password string) bool {
@@ -95,10 +118,10 @@ func (h *httpServer) DeleteQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println("domain to delete:", key)
+	h.log.Debug("domain to delete", zap.String("key", key))
 
 	if err := h.db.Remove(key); err != nil {
-		log.Println("could not delete domain:", err)
+		h.log.Error("could not delete domain:", zap.Error(err))
 		http.Error(w, "could not delete domain", http.StatusBadRequest)
 
 		return
@@ -111,7 +134,7 @@ func (h *httpServer) DeleteQuery(w http.ResponseWriter, r *http.Request) {
 func (h *httpServer) GetQueries(w http.ResponseWriter, r *http.Request) {
 	records, err := h.db.GetAll()
 	if err != nil {
-		log.Println("failed to get records from keyDB:", err)
+		h.log.Error("failed to get records from keyDB:", zap.Error(err))
 		http.Error(w, "could not get DNS records", http.StatusInternalServerError)
 
 		return
@@ -119,7 +142,7 @@ func (h *httpServer) GetQueries(w http.ResponseWriter, r *http.Request) {
 
 	data, err := json.MarshalIndent(records, "", "  ")
 	if err != nil {
-		log.Println("failed to marshal records:", err)
+		h.log.Error("failed to marshal records:", zap.Error(err))
 		http.Error(w, "could not get DNS records", http.StatusInternalServerError)
 
 		return

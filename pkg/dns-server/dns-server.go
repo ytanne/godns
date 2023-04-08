@@ -11,6 +11,7 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/ytanne/godns/pkg/models"
+	"go.uber.org/zap"
 )
 
 var (
@@ -46,9 +47,16 @@ type keyDB interface {
 
 type dnsServer struct {
 	server server
+	log    *zap.Logger
 }
 
-func NewDnsServer(dnsPort string, cache keyDB) *dnsServer {
+func WithLogger(logger *zap.Logger) func(d *dnsServer) {
+	return func(d *dnsServer) {
+		d.log = logger
+	}
+}
+
+func NewDnsServer(dnsPort string, cache keyDB, sets ...func(d *dnsServer)) *dnsServer {
 	h := &handler{
 		cache: cache,
 	}
@@ -58,9 +66,15 @@ func NewDnsServer(dnsPort string, cache keyDB) *dnsServer {
 		Handler: h,
 	}
 
-	return &dnsServer{
+	ds := &dnsServer{
 		server: s,
 	}
+
+	for _, set := range sets {
+		set(ds)
+	}
+
+	return ds
 }
 
 func (d *dnsServer) ListenAndServe() error {
