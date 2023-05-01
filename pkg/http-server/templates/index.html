@@ -1,46 +1,60 @@
 <!DOCTYPE html>
 <html>
-  <head>
+<head>
     <meta charset="UTF-8">
-    <title>My Table</title>
-  </head>
-  <body>
-    <h1>DNS cache</h1>
-    <table id="my-table">
-      <thead>
-        <tr>
-          <th>Domain</th>
-          <th>IPv4</th>
-          <th>Time</th>
-        </tr>
-      </thead>
-      <tbody>
-      </tbody>
-    </table>
-
-    <script>
-      // Define function to populate table
-      function populateTable(data) {
-        var tableBody = document.querySelector('#my-table tbody');
-        for (var i = 0; i < data.length; i++) {
-          var row = tableBody.insertRow(-1);
-          var domainCell = row.insertCell(0);
-          var ipv4Cell = row.insertCell(1);
-          var timeCell = row.insertCell(2);
-          domainCell.textContent = data[i].domain;
-          ipv4Cell.textContent = data[i].ipv4;
-          timeCell.textContext = data[i].time;
+    <title>API Table</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
         }
-      }
+        th, td {
+            text-align: left;
+            padding: 8px;
+        }
+        tr:nth-child(even){background-color: #f2f2f2}
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $.getJSON("/api/cache", function(data) {
+                $.each(data, function(key, val) {
+                    var tr = $("<tr></tr>");
+                    tr.append("<td>" + val.domain + "</td>");
+                    tr.append("<td>" + val.ipv4 + "</td>");
+                    tr.append("<td>" + new Date(val.time).toLocaleString('en-US', {weekday: 'short', hour:'numeric', minute:'numeric', second:'numeric'}) + "</td>");
+                    var banned = val.banned ? "true" : "false";
+                    tr.append("<td>" + banned + "</td>");
+                    tr.append("<td><button onclick='deleteDomain(\"" + val.domain + "\")'>Delete</button>" +
+                              "<button onclick='banDomain(\"" + val.domain + "\")'>Ban</button></td>");
+                    $('table').append(tr);
+                });
+            });
+        });
 
-      // Fetch JSON data and populate table on page load
-      window.addEventListener('load', function() {
-        fetch('/api/cache')
-          .then(function(response) { return response.json(); })
-          .then(function(data) { populateTable(data); })
-          .catch(function(error) { console.error(error); });
-      });
+        function deleteDomain(domain) {
+            $.post("/api/cache/delete", {"domain": domain, "action": "delete"});
+        }
+
+        function banDomain(domain) {
+            $.post("/api/cache/ban", {"domain": domain, "action": "ban"});
+        }
     </script>
-  </body>
+</head>
+<body>
+    <table>
+        <tr>
+            <th>Domain</th>
+            <th>IPv4</th>
+            <th>Time</th>
+            <th>Banned</th>
+            <th>Actions</th>
+        </tr>
+    </table>
+</body>
 </html>
 

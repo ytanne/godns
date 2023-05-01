@@ -39,6 +39,8 @@ type handler struct {
 	cache keyDB
 }
 
+var _ dns.Handler = (*handler)(nil)
+
 type keyDB interface {
 	Get(key string) (models.Record, error)
 	Set(key string, value models.Record) error
