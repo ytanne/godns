@@ -14,4 +14,4 @@ test:
 
 lint:
 	@echo "Running linter"
-	@golangci-lint run
+	@golangci-lint run --fix

@@ -1,12 +1,11 @@
 package server
 
 import (
+	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"strings"
-
-	_ "embed"
 
 	"github.com/ytanne/godns/pkg/config"
 	"github.com/ytanne/godns/pkg/models"
@@ -46,12 +45,14 @@ func NewHttpServer(cfg config.WebServerConfig, db keyDB, sets ...func(*httpServe
 
 	mux := http.NewServeMux()
 
-	mux.Handle("/api/", http.StripPrefix("/api", h.middleware(http.HandlerFunc(h.handleAPI))))
-	mux.Handle("/", h.middleware(http.HandlerFunc(h.handlePages)))
+	mux.Handle("/api/", http.StripPrefix("/api", http.HandlerFunc(h.handleAPI)))
+	mux.Handle("/", http.HandlerFunc(h.handlePages))
+	serverHandler := h.panicMiddleware(mux)
+	serverHandler = h.authMiddleware(serverHandler)
 
 	h.server = &http.Server{
 		Addr:    ":" + cfg.HttpPort,
-		Handler: mux,
+		Handler: serverHandler,
 	}
 
 	return h
@@ -152,7 +153,7 @@ func (h *httpServer) GetQueries(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
-func (h *httpServer) middleware(next http.Handler) http.Handler {
+func (h *httpServer) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get the Authorization header from the request
 		authHeader := r.Header.Get("Authorization")
@@ -167,6 +168,19 @@ func (h *httpServer) middleware(next http.Handler) http.Handler {
 		if !h.validAuthHeader(w, authHeader) {
 			return
 		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (h *httpServer) panicMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if msg := recover(); msg != nil {
+				h.log.Error("recovered from panic", zap.Any("msg", msg))
+				http.Error(w, "Internal error", http.StatusInternalServerError)
+			}
+		}()
 
 		next.ServeHTTP(w, r)
 	})
